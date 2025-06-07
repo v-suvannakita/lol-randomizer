@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "cd client && npm install && npm run build",
-    "start": "cd server && npm install && npm start"
+    "postinstall": "npm install --prefix client && npm install --prefix server",
+    "start": "node server/index.js"
   }
 }
