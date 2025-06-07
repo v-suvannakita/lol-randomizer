@@ -74,6 +74,14 @@ app.post('/api/randomize', (req, res) => {
   res.json({ team1, team2 });
 });
 
+// Serve static files from the React app
+app.use(express.static(path.join(__dirname, '..', 'client', 'dist')));
+
+// All other GET requests not handled before will return the React app
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'client', 'dist', 'index.html'));
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
