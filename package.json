@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "cd client && npx vite build",
+    "build": "cd client && npm install && npm run build",
     "postinstall": "npm install --prefix client && npm install --prefix server",
     "start": "node server/index.js"
   }
