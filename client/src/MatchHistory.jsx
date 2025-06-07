@@ -109,7 +109,7 @@ function MatchHistory() {
                 fontWeight: 700,
                 letterSpacing: 1
               }}>
-                {new Date(h.timestamp).toLocaleString()}
+                {new Date(h.timestamp).toLocaleString('en-US', { timeZone: 'Asia/Bangkok' })}
               </div>
             </div>
             <div style={{
