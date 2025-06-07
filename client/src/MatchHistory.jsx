@@ -109,7 +109,19 @@ function MatchHistory() {
                 fontWeight: 700,
                 letterSpacing: 1
               }}>
-                {new Date(h.timestamp).toLocaleString('en-US', { timeZone: 'Asia/Bangkok' })}
+                {
+                  (() => {
+                    const d = new Date(h.timestamp);
+                    const options = { timeZone: 'Asia/Bangkok' };
+                    const year = d.toLocaleString('en-GB', { year: 'numeric', ...options });
+                    const month = d.toLocaleString('en-GB', { month: '2-digit', ...options });
+                    const day = d.toLocaleString('en-GB', { day: '2-digit', ...options });
+                    const hour = d.toLocaleString('en-GB', { hour: '2-digit', hour12: false, ...options });
+                    const minute = d.toLocaleString('en-GB', { minute: '2-digit', ...options });
+                    const second = d.toLocaleString('en-GB', { second: '2-digit', ...options });
+                    return `${day}/${month}/${year} ${hour}:${minute}:${second}`;
+                  })()
+                }
               </div>
             </div>
             <div style={{

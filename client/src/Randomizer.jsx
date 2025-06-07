@@ -5,7 +5,7 @@ function assignRolesAndBalance(players) {
   const roles = ['top', 'jungle', 'mid', 'adc', 'sup'];
   if (players.length < 10) return { team1: [], team2: [] };
 
-  // Build a matrix: playerId -> available roles (score > 0)
+  // Only consider players with at least one role > 0
   const available = players.map(p => ({
     ...p,
     availableRoles: roles.filter(role => p[role] > 0)
@@ -20,16 +20,15 @@ function assignRolesAndBalance(players) {
     return { team1: [], team2: [] };
   }
 
-  // Assign roles so that each team has all 5 roles, no duplicates per team
+  // Assign roles so that each team has all 5 roles, no duplicates per team, and only roles with score > 0
   let usedIds = new Set();
   let team1 = [];
   let team2 = [];
 
-  // For each role, pick two players with score > 0 for that role, not used yet
   for (let role of roles) {
+    // Only consider players with score > 0 for this role
     const candidates = available.filter(p => !usedIds.has(p.id) && p[role] > 0);
     if (candidates.length < 2) {
-      // Should not happen due to pre-requisite, but guard anyway
       if (typeof window !== "undefined") {
         window.alert("Cannot assign both teams with all 5 roles (with score > 0). Teams will be filled as best as possible, ignoring role and point balancing rules.");
       }
@@ -55,18 +54,22 @@ function assignRolesAndBalance(players) {
   team1 = team1.slice(0, 5);
   team2 = team2.slice(0, 5);
 
-  // Try to balance total team score (difference <= 3, fallback to <= 5 if not possible)
+  // Calculate team sum only for assigned roles with score > 0
   function teamSum(team) {
-    return team.reduce((a, b) => a + (parseInt(b.assignedScore) || 0), 0);
+    return team.reduce((a, b) => {
+      const score = (b.assignedScore > 0) ? parseInt(b.assignedScore) : 0;
+      return a + (score || 0);
+    }, 0);
   }
   let diff = Math.abs(teamSum(team1) - teamSum(team2));
-  let improved = true;
 
   function trySwapRole(role) {
     let changed = false;
     for (let i = 0; i < team1.length; i++) {
       for (let j = 0; j < team2.length; j++) {
         if (team1[i].assignedRole !== role || team2[j].assignedRole !== role) continue;
+        // Only swap if both have score > 0 for this role
+        if ((parseInt(team1[i][role]) || 0) <= 0 || (parseInt(team2[j][role]) || 0) <= 0) continue;
         let t1 = [...team1];
         let t2 = [...team2];
         [t1[i], t2[j]] = [t2[j], t1[i]];
@@ -77,32 +80,45 @@ function assignRolesAndBalance(players) {
           diff = newDiff;
           changed = true;
         }
-        if (diff <= 3) return true;
+        // Stop early if within current threshold
+        if (diff <= currentThreshold) return true;
       }
-      if (diff <= 3) return true;
+      if (diff <= currentThreshold) return true;
     }
     return changed;
   }
 
-  // First, try to balance ADC and SUP roles
-  while (diff > 3) {
-    let changed = false;
-    changed = trySwapRole('adc');
-    if (diff <= 3) break;
-    changed = trySwapRole('sup') || changed;
-    if (diff <= 3) break;
-    for (let role of ['top', 'jungle', 'mid']) {
-      changed = trySwapRole(role) || changed;
-      if (diff <= 3) break;
+  // Try thresholds: 3, then 5, then 7
+  let thresholds = [3, 5, 7];
+  let balanced = false;
+  let currentThreshold = thresholds[0];
+
+  for (let t = 0; t < thresholds.length; t++) {
+    currentThreshold = thresholds[t];
+    let localChanged = true;
+    diff = Math.abs(teamSum(team1) - teamSum(team2));
+    // Try to swap roles to balance within current threshold
+    while (diff > currentThreshold && localChanged) {
+      localChanged = false;
+      localChanged = trySwapRole('adc') || localChanged;
+      if (diff <= currentThreshold) break;
+      localChanged = trySwapRole('sup') || localChanged;
+      if (diff <= currentThreshold) break;
+      for (let role of ['top', 'jungle', 'mid']) {
+        localChanged = trySwapRole(role) || localChanged;
+        if (diff <= currentThreshold) break;
+      }
     }
-    if (!changed) break;
+    diff = Math.abs(teamSum(team1) - teamSum(team2));
+    if (diff <= currentThreshold) {
+      balanced = true;
+      break;
+    }
   }
 
-  // If still cannot balance, allow up to 5 points difference and show popup if > 5
-  if (diff > 3 && diff <= 5) {
-    // Acceptable fallback, no popup
-  } else if (diff > 5 && typeof window !== "undefined") {
-    window.alert("Cannot balance teams within 5 points. This is because role assignment is forced to be unique for both teams and only players with score > 0 are considered.");
+  // If still cannot balance, show popup
+  if (!balanced && typeof window !== "undefined") {
+    window.alert("Cannot balance teams within 7 points. This is because role assignment is forced to be unique for both teams and only players with score > 0 are considered.");
   }
 
   return { team1, team2 };
@@ -677,10 +693,15 @@ function Randomizer() {
                 marginBottom: 12
               }}>
                 <thead>
-                  <tr>
-                    <th style={{ textAlign: 'center', color: t.color, fontWeight: 900, fontSize: 18, letterSpacing: 1 }}>Name</th>
-                    <th style={{ textAlign: 'center', color: t.color, fontWeight: 900, fontSize: 18, letterSpacing: 1 }}>Role</th>
-                    <th style={{ textAlign: 'center', color: t.color, fontWeight: 900, fontSize: 18, letterSpacing: 1 }}>Score</th>
+                  <tr style={{
+                    color: t.color,
+                    fontWeight: 900,
+                    fontSize: 18,
+                    letterSpacing: 1
+                  }}>
+                    <th style={{ textAlign: 'center', padding: 12 }}>Name</th>
+                    <th style={{ textAlign: 'center', padding: 12 }}>Role</th>
+                    <th style={{ textAlign: 'center', padding: 12 }}>Score</th>
                   </tr>
                 </thead>
                 <tbody>
