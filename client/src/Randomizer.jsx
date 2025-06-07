@@ -119,6 +119,7 @@ function Randomizer() {
 
   // --- Fix: selectedIds must be stateful and persist across renders ---
   const [selectedIds, setSelectedIds] = useState([]);
+  const [history, setHistory] = useState([]);
 
   // Fetch players
   useEffect(() => {
@@ -224,6 +225,15 @@ function Randomizer() {
     setStep(3);
   };
 
+  // Fetch match history after result
+  useEffect(() => {
+    if (step === 4) {
+      fetch('/api/match-history')
+        .then(res => res.json())
+        .then(setHistory);
+    }
+  }, [step]);
+
   // --- Winner logic: increase score for the role played ---
   // Now also decrease score for the losing team, and clamp between 1 and 10
   const handlePickWinner = async (team) => {
@@ -232,26 +242,59 @@ function Randomizer() {
     const loserTeam = team === "team1" ? "team2" : "team1";
     const loserPlayers = teams[loserTeam];
 
+    // Prepare detailed player info for match history
+    const detailedTeam1 = [];
+    const detailedTeam2 = [];
+
     // Winner: +1 to assigned role, max 10, min 1
     for (const p of winnerPlayers) {
       if (!p.assignedRole) continue;
-      let newScore = Math.min(10, Math.max(1, (parseInt(p[p.assignedRole]) || 1) + 1));
+      const oldScore = parseInt(p[p.assignedRole]) || 1;
+      const newScore = Math.min(10, Math.max(1, oldScore + 1));
       await fetch(`/api/players/${p.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [p.assignedRole]: newScore })
+      });
+      detailedTeam1.push({
+        ...p,
+        assignedRole: p.assignedRole,
+        oldScore,
+        newScore
       });
     }
     // Loser: -1 to assigned role, max 10, min 1
     for (const p of loserPlayers) {
       if (!p.assignedRole) continue;
-      let newScore = Math.min(10, Math.max(1, (parseInt(p[p.assignedRole]) || 1) - 1));
+      const oldScore = parseInt(p[p.assignedRole]) || 1;
+      const newScore = Math.min(10, Math.max(1, oldScore - 1));
       await fetch(`/api/players/${p.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [p.assignedRole]: newScore })
       });
+      detailedTeam2.push({
+        ...p,
+        assignedRole: p.assignedRole,
+        oldScore,
+        newScore
+      });
     }
+
+    // --- Save match history with detailed info ---
+    await fetch('/api/match-history', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        winner: team,
+        loser: loserTeam,
+        teams: team === "team1"
+          ? { team1: detailedTeam1, team2: detailedTeam2 }
+          : { team1: detailedTeam2, team2: detailedTeam1 },
+        timestamp: Date.now()
+      })
+    });
+
     setStep(4);
   };
 

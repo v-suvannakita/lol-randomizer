@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react';
 
 const defaultRoles = { overall: 5, top: 0, jungle: 0, mid: 0, adc: 0, sup: 0 };
+const INITIATE_PASSWORD = "letmein"; // TODO: change this to your real password
 
 function InitiatePlayer() {
   const [players, setPlayers] = useState([]);
   const [form, setForm] = useState({ name: '', ...defaultRoles });
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState('');
+  const [password, setPassword] = useState('');
+  const [passed, setPassed] = useState(false);
 
   // Fetch players from backend
   useEffect(() => {
@@ -100,6 +103,86 @@ function InitiatePlayer() {
     setEditingId(null);
     setError('');
   };
+
+  // Password gate UI
+  if (!passed) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(135deg, #18191a 0%, #232526 100%)'
+      }}>
+        <div style={{
+          background: 'rgba(30,32,34,0.98)',
+          borderRadius: 18,
+          boxShadow: '0 8px 32px #000b, 0 1.5px 0 #00ffa355',
+          padding: 40,
+          border: '1.5px solid #00ffa355',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center'
+        }}>
+          <h2 style={{
+            color: '#00ffa3',
+            fontWeight: 900,
+            fontSize: 28,
+            marginBottom: 24,
+            letterSpacing: 2,
+            textAlign: 'center'
+          }}>Enter Password</h2>
+          <input
+            type="password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            placeholder="Password"
+            style={{
+              padding: '12px 18px',
+              borderRadius: 12,
+              border: '2px solid #00ffa3',
+              width: 220,
+              fontSize: 19,
+              background: '#18191a',
+              color: '#fff',
+              fontWeight: 700,
+              outline: 'none',
+              boxShadow: '0 2px 12px #00ffa344',
+              marginBottom: 18,
+              transition: 'border 0.2s'
+            }}
+            autoFocus
+            onKeyDown={e => {
+              if (e.key === 'Enter' && password === INITIATE_PASSWORD) setPassed(true);
+            }}
+          />
+          <button
+            onClick={() => {
+              if (password === INITIATE_PASSWORD) setPassed(true);
+            }}
+            style={{
+              background: password === INITIATE_PASSWORD ? 'linear-gradient(90deg, #00ffa3 0%, #00d8ff 100%)' : '#444',
+              color: password === INITIATE_PASSWORD ? '#222' : '#888',
+              border: 'none',
+              borderRadius: 12,
+              padding: '12px 36px',
+              fontWeight: 900,
+              fontSize: 20,
+              cursor: password === INITIATE_PASSWORD ? 'pointer' : 'not-allowed',
+              transition: 'background 0.2s, color 0.2s'
+            }}
+            disabled={password !== INITIATE_PASSWORD}
+          >
+            Enter
+          </button>
+          {password && password !== INITIATE_PASSWORD && (
+            <div style={{ color: '#ff4b4b', marginTop: 12, fontWeight: 700 }}>Incorrect password</div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{

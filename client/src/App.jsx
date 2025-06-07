@@ -1,25 +1,29 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import InitiatePlayer from './InitiatePlayer';
 import Randomizer from './Randomizer';
+import MatchHistory from './MatchHistory';
 
 function App() {
-  const [page, setPage] = useState('randomizer');
   return (
-    <div>
+    <Router>
       <nav style={{
         display: 'flex',
-        gap: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 40,
         background: '#222',
         color: '#fff',
-        padding: 10,
+        padding: 18,
         fontFamily: 'Montserrat, Arial, sans-serif',
         fontWeight: 700,
         fontSize: 20,
         letterSpacing: 2,
         boxShadow: '0 2px 8px #0008'
       }}>
-        <span style={{ cursor: 'pointer', color: page === 'randomizer' ? '#00ffa3' : '#fff' }} onClick={() => setPage('randomizer')}>Randomizer</span>
-        <span style={{ cursor: 'pointer', color: page === 'initiate' ? '#00ffa3' : '#fff' }} onClick={() => setPage('initiate')}>Initiate Player</span>
+        <Link to="/" style={{ color: '#00ffa3', fontWeight: 900, fontSize: 20, textDecoration: 'none' }}>Randomizer</Link>
+        <Link to="/history" style={{ color: '#00d8ff', fontWeight: 900, fontSize: 20, textDecoration: 'none' }}>Match History</Link>
+        <Link to="/initiate" style={{ color: '#fff', fontWeight: 900, fontSize: 20, textDecoration: 'none' }}>Initiate Player</Link>
       </nav>
       <div
         style={{
@@ -106,11 +110,11 @@ function App() {
             }
           `}
         </style>
-        {page === 'randomizer' ? (
-          <Randomizer />
-        ) : (
-          <InitiatePlayer />
-        )}
+        <Routes>
+          <Route path="/" element={<Randomizer />} />
+          <Route path="/history" element={<MatchHistory />} />
+          <Route path="/initiate" element={<InitiatePlayer />} />
+        </Routes>
       </div>
       <style>
         {`
@@ -122,7 +126,7 @@ function App() {
           }
         `}
       </style>
-    </div>
+    </Router>
   );
 }
 

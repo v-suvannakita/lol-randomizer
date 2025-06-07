@@ -7,6 +7,7 @@ const path = require('path');
 const app = express();
 const PORT = 3001;
 const DB_PATH = path.join(__dirname, '../main_db.txt');
+const MATCH_HISTORY_PATH = path.join(__dirname, '../match_history.txt');
 
 app.use(cors());
 app.use(express.json());
@@ -25,6 +26,24 @@ function readDB() {
 function writeDB(players) {
   const lines = players.map(p => [p.id, p.name, p.overall, p.top, p.jungle, p.mid, p.adc, p.sup].join('|'));
   fs.writeFileSync(DB_PATH, lines.join('\n'), 'utf-8');
+}
+
+// Helper: Read Match History
+function readMatchHistory() {
+  if (!fs.existsSync(MATCH_HISTORY_PATH)) return [];
+  const lines = fs.readFileSync(MATCH_HISTORY_PATH, 'utf-8').split('\n').filter(Boolean);
+  return lines.map(line => {
+    try {
+      return JSON.parse(line);
+    } catch {
+      return null;
+    }
+  }).filter(Boolean);
+}
+
+// Helper: Write Match History (append)
+function appendMatchHistory(record) {
+  fs.appendFileSync(MATCH_HISTORY_PATH, JSON.stringify(record) + '\n', 'utf-8');
 }
 
 // Get all players
@@ -72,6 +91,37 @@ app.post('/api/randomize', (req, res) => {
   const team1 = shuffled.slice(0, 5);
   const team2 = shuffled.slice(5, 10);
   res.json({ team1, team2 });
+});
+
+// API: Get match history
+app.get('/api/match-history', (req, res) => {
+  res.json(readMatchHistory());
+});
+
+// API: Add match history
+app.post('/api/match-history', (req, res) => {
+  const { winner, loser, teams, timestamp } = req.body;
+  // Validate: teams must have team1 and team2 arrays, each player must have assignedRole, oldScore, newScore
+  if (
+    !winner ||
+    !loser ||
+    !teams ||
+    !Array.isArray(teams.team1) ||
+    !Array.isArray(teams.team2)
+  ) {
+    return res.status(400).json({ error: 'Invalid match data' });
+  }
+  // Optionally, further validation for player fields can be added here
+
+  const record = {
+    id: uuidv4(),
+    winner,
+    loser,
+    teams,
+    timestamp: timestamp || Date.now()
+  };
+  appendMatchHistory(record);
+  res.json({ success: true, record });
 });
 
 // Serve static files from the React app
