@@ -11,15 +11,6 @@ function assignRolesAndBalance(players) {
     availableRoles: roles.filter(role => p[role] > 0)
   }));
 
-  // Pre-requisite: must have 2 players with score > 0 for every role
-  const validRoles = roles.filter(role => available.filter(p => p[role] > 0).length >= 2);
-  if (validRoles.length < 5) {
-    if (typeof window !== "undefined") {
-      window.alert("Cannot assign both teams with all 5 roles (MID, ADC, TOP, SUP, JUNGLE) because some roles do not have at least 2 players with score > 0. Please select different players or adjust player roles.");
-    }
-    return { team1: [], team2: [] };
-  }
-
   // Assign roles so that each team has all 5 roles, no duplicates per team, and only roles with score > 0
   let usedIds = new Set();
   let team1 = [];
@@ -29,10 +20,8 @@ function assignRolesAndBalance(players) {
     // Only consider players with score > 0 for this role
     const candidates = available.filter(p => !usedIds.has(p.id) && p[role] > 0);
     if (candidates.length < 2) {
-      if (typeof window !== "undefined") {
-        window.alert("Cannot assign both teams with all 5 roles (with score > 0). Teams will be filled as best as possible, ignoring role and point balancing rules.");
-      }
-      return { team1: [], team2: [] };
+      // --- Relaxed: No alert or early return, just assign as best as possible ---
+      continue;
     }
     // Sort by score DESC for this role
     const sorted = [...candidates].sort((a, b) => b[role] - a[role]);
