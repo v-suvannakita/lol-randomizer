@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 
 function MatchHistory() {
   const [history, setHistory] = useState([]);
@@ -12,9 +12,15 @@ function MatchHistory() {
   }, []);
 
   // Pagination logic
-  const sortedHistory = [...history].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-  const totalPages = Math.ceil(sortedHistory.length / PAGE_SIZE);
-  const pagedHistory = sortedHistory.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const sortedHistory = useMemo(
+    () => [...history].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)),
+    [history]
+  );
+  const totalPages = useMemo(() => Math.ceil(sortedHistory.length / PAGE_SIZE), [sortedHistory]);
+  const pagedHistory = useMemo(
+    () => sortedHistory.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [sortedHistory, page]
+  );
 
   return (
     <div style={{

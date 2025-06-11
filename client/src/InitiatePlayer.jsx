@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 
 const defaultRoles = { overall: 5, top: 0, jungle: 0, mid: 0, adc: 0, sup: 0 };
 const INITIATE_PASSWORD = "letmein"; // TODO: change this to your real password
@@ -12,59 +12,58 @@ function InitiatePlayer() {
   const [passed, setPassed] = useState(false);
 
   // Fetch players from backend
-  useEffect(() => {
-    fetch('/api/players').then(res => res.json()).then(data => {
-      setPlayers(data.filter(p => p.name && p.name.toLowerCase() !== 'name'));
-    });
+  const fetchPlayers = useCallback(() => {
+    fetch('/api/players')
+      .then(res => res.json())
+      .then(data => setPlayers(data.filter(p => p.name && p.name.toLowerCase() !== 'name')));
   }, []);
 
-  const handleChange = (e) => {
+  useEffect(() => { fetchPlayers(); }, [fetchPlayers]);
+
+  const handleChange = useCallback(e => {
     const { name, value } = e.target;
     let v = value;
     if (['overall', 'top', 'jungle', 'mid', 'adc', 'sup'].includes(name)) {
-      // Only allow numbers between 0 and 100
-      let num = parseInt(v);
+      let num = Number(v);
       if (isNaN(num)) num = 0;
       if (num > 100) num = 100;
       if (num < 0) num = 0;
       v = num;
     }
-    setForm({ ...form, [name]: v });
-  };
+    setForm(f => ({ ...f, [name]: v }));
+  }, []);
 
-  const handleRoleChange = (role, delta) => {
+  const handleRoleChange = useCallback((role, delta) => {
     setForm(f => {
       let next = (parseInt(f[role]) || 0) + delta;
       if (next > 100) next = 100;
       if (next < 0) next = 0;
       return { ...f, [role]: next };
     });
-  };
+  }, []);
 
-  const validate = () => {
+  const validate = useCallback(() => {
     if (!form.name.trim()) return 'Name is required';
     for (const key of ['overall', 'top', 'jungle', 'mid', 'adc', 'sup']) {
-      const val = parseInt(form[key]);
-      if (isNaN(val) || val < 0 || val > 100) {
-        return `Each score must be between 0 and 100`;
-      }
+      const val = Number(form[key]);
+      if (isNaN(val) || val < 0 || val > 100) return `Each score must be between 0 and 100`;
     }
     return '';
-  };
+  }, [form]);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     const err = validate();
     if (err) return setError(err);
     setError('');
     const payload = {
       name: form.name.trim(),
-      overall: parseInt(form.overall) || 0,
-      top: parseInt(form.top) || 0,
-      jungle: parseInt(form.jungle) || 0,
-      mid: parseInt(form.mid) || 0,
-      adc: parseInt(form.adc) || 0,
-      sup: parseInt(form.sup) || 0,
+      overall: Number(form.overall) || 0,
+      top: Number(form.top) || 0,
+      jungle: Number(form.jungle) || 0,
+      mid: Number(form.mid) || 0,
+      adc: Number(form.adc) || 0,
+      sup: Number(form.sup) || 0,
     };
     if (editingId) {
       await fetch(`/api/players/${editingId}`, {
@@ -81,28 +80,24 @@ function InitiatePlayer() {
     }
     setForm({ name: '', ...defaultRoles });
     setEditingId(null);
-    fetch('/api/players').then(res => res.json()).then(data => {
-      setPlayers(data.filter(p => p.name && p.name.toLowerCase() !== 'name'));
-    });
-  };
+    fetchPlayers();
+  }, [editingId, form, fetchPlayers, validate]);
 
-  const handleEdit = (p) => {
+  const handleEdit = useCallback(p => {
     setForm({ name: p.name, overall: p.overall, top: p.top, jungle: p.jungle, mid: p.mid, adc: p.adc, sup: p.sup });
     setEditingId(p.id);
-  };
+  }, []);
 
-  const handleRemove = async (id) => {
+  const handleRemove = useCallback(async id => {
     await fetch(`/api/players/${id}`, { method: 'DELETE' });
-    fetch('/api/players').then(res => res.json()).then(data => {
-      setPlayers(data.filter(p => p.name && p.name.toLowerCase() !== 'name'));
-    });
-  };
+    fetchPlayers();
+  }, [fetchPlayers]);
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     setForm({ name: '', ...defaultRoles });
     setEditingId(null);
     setError('');
-  };
+  }, []);
 
   // Password gate UI
   if (!passed) {

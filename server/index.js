@@ -8,48 +8,55 @@ const app = express();
 const PORT = 3001;
 const DB_PATH = path.join(__dirname, '../main_db.txt');
 const MATCH_HISTORY_PATH = path.join(__dirname, '../match_history.txt');
+const SESSION_PATH = path.join(__dirname, '../session.txt');
 
 app.use(cors());
 app.use(express.json());
 
 // Helper: Read DB
-function readDB() {
+const readDB = () => {
   if (!fs.existsSync(DB_PATH)) return [];
-  const lines = fs.readFileSync(DB_PATH, 'utf-8').split('\n').filter(Boolean);
-  return lines.map(line => {
-    const [id, name, overall, top, jungle, mid, adc, sup] = line.split('|');
-    return { id, name, overall: +overall, top: +top, jungle: +jungle, mid: +mid, adc: +adc, sup: +sup };
-  });
-}
+  return fs.readFileSync(DB_PATH, 'utf-8')
+    .split('\n')
+    .filter(Boolean)
+    .map(line => {
+      const [id, name, overall, top, jungle, mid, adc, sup] = line.split('|');
+      return { id, name, overall: +overall, top: +top, jungle: +jungle, mid: +mid, adc: +adc, sup: +sup };
+    });
+};
 
 // Helper: Write DB
-function writeDB(players) {
-  const lines = players.map(p => [p.id, p.name, p.overall, p.top, p.jungle, p.mid, p.adc, p.sup].join('|'));
-  fs.writeFileSync(DB_PATH, lines.join('\n'), 'utf-8');
-}
+const writeDB = players => {
+  fs.writeFileSync(
+    DB_PATH,
+    players.map(({ id, name, overall, top, jungle, mid, adc, sup }) =>
+      [id, name, overall, top, jungle, mid, adc, sup].join('|')
+    ).join('\n'),
+    'utf-8'
+  );
+};
 
 // Helper: Read Match History
-function readMatchHistory() {
+const readMatchHistory = () => {
   if (!fs.existsSync(MATCH_HISTORY_PATH)) return [];
-  const lines = fs.readFileSync(MATCH_HISTORY_PATH, 'utf-8').split('\n').filter(Boolean);
-  return lines.map(line => {
-    try {
-      return JSON.parse(line);
-    } catch {
-      return null;
-    }
-  }).filter(Boolean);
-}
+  return fs.readFileSync(MATCH_HISTORY_PATH, 'utf-8')
+    .split('\n')
+    .filter(Boolean)
+    .map(line => {
+      try { return JSON.parse(line); } catch { return null; }
+    })
+    .filter(Boolean);
+};
 
 // Helper: Write Match History (append)
-function appendMatchHistory(record) {
+const appendMatchHistory = record => {
   fs.appendFileSync(MATCH_HISTORY_PATH, JSON.stringify(record) + '\n', 'utf-8');
-}
+};
+
+// --- API Routes ---
 
 // Get all players
-app.get('/api/players', (req, res) => {
-  res.json(readDB());
-});
+app.get('/api/players', (req, res) => res.json(readDB()));
 
 // Add player
 app.post('/api/players', (req, res) => {
@@ -76,32 +83,25 @@ app.put('/api/players/:id', (req, res) => {
 // Delete player
 app.delete('/api/players/:id', (req, res) => {
   const { id } = req.params;
-  let players = readDB();
-  players = players.filter(p => p.id !== id);
+  const players = readDB().filter(p => p.id !== id);
   writeDB(players);
   res.json({ success: true });
 });
 
-// Randomizer endpoint (simplified, implement balancing logic as needed)
+// Randomizer endpoint (simple shuffle, split into two teams)
 app.post('/api/randomize', (req, res) => {
   const { playerIds } = req.body;
   const players = readDB().filter(p => playerIds.includes(p.id));
-  // Shuffle and split into two teams
-  const shuffled = players.sort(() => Math.random() - 0.5);
-  const team1 = shuffled.slice(0, 5);
-  const team2 = shuffled.slice(5, 10);
-  res.json({ team1, team2 });
+  const shuffled = [...players].sort(() => Math.random() - 0.5);
+  res.json({ team1: shuffled.slice(0, 5), team2: shuffled.slice(5, 10) });
 });
 
 // API: Get match history
-app.get('/api/match-history', (req, res) => {
-  res.json(readMatchHistory());
-});
+app.get('/api/match-history', (req, res) => res.json(readMatchHistory()));
 
 // API: Add match history
 app.post('/api/match-history', (req, res) => {
   const { winner, loser, teams, timestamp } = req.body;
-  // Validate: teams must have team1 and team2 arrays, each player must have assignedRole, oldScore, newScore
   if (
     !winner ||
     !loser ||
@@ -111,8 +111,6 @@ app.post('/api/match-history', (req, res) => {
   ) {
     return res.status(400).json({ error: 'Invalid match data' });
   }
-  // Optionally, further validation for player fields can be added here
-
   const record = {
     id: uuidv4(),
     winner,
@@ -122,6 +120,34 @@ app.post('/api/match-history', (req, res) => {
   };
   appendMatchHistory(record);
   res.json({ success: true, record });
+});
+
+// --- Session API ---
+app.get('/api/session', (req, res) => {
+  if (!fs.existsSync(SESSION_PATH)) return res.status(404).end();
+  try {
+    res.json(JSON.parse(fs.readFileSync(SESSION_PATH, 'utf-8')));
+  } catch {
+    res.status(500).json({ error: 'Failed to read session' });
+  }
+});
+
+app.post('/api/session', (req, res) => {
+  try {
+    fs.writeFileSync(SESSION_PATH, JSON.stringify(req.body), 'utf-8');
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ error: 'Failed to save session' });
+  }
+});
+
+app.delete('/api/session', (req, res) => {
+  try {
+    if (fs.existsSync(SESSION_PATH)) fs.unlinkSync(SESSION_PATH);
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ error: 'Failed to delete session' });
+  }
 });
 
 // Serve static files from the React app

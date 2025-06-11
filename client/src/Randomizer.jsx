@@ -11,21 +11,21 @@ function assignRolesAndBalance(players) {
     availableRoles: roles.filter(role => p[role] > 0)
   }));
 
-  // Assign roles so that each team has all 5 roles, no duplicates per team, and only roles with score > 0
+  // Try to assign each role to two different players (one per team), only if they have >0 in that role
   let usedIds = new Set();
   let team1 = [];
   let team2 = [];
 
   for (let role of roles) {
-    // Only consider players with score > 0 for this role
+    // Only consider players with score > 0 for this role and not already assigned
     const candidates = available.filter(p => !usedIds.has(p.id) && p[role] > 0);
     if (candidates.length < 2) {
-      // --- Relaxed: No alert or early return, just assign as best as possible ---
-      continue;
+      // Not enough candidates for this role, cannot assign both teams uniquely
+      return { team1: [], team2: [] };
     }
     // Sort by score DESC for this role
     const sorted = [...candidates].sort((a, b) => b[role] - a[role]);
-    // Assign highest to team1, second highest to team2 (randomize for fairness)
+    // Randomize assignment for fairness
     if (Math.random() < 0.5) {
       team1.push({ ...sorted[0], assignedRole: role, assignedScore: sorted[0][role] });
       team2.push({ ...sorted[1], assignedRole: role, assignedScore: sorted[1][role] });
@@ -46,8 +46,8 @@ function assignRolesAndBalance(players) {
   // Calculate team sum only for assigned roles with score > 0
   function teamSum(team) {
     return team.reduce((a, b) => {
-      const score = (b.assignedScore > 0) ? parseInt(b.assignedScore) : 0;
-      return a + (score || 0);
+      const score = (parseInt(b.assignedScore) >= 1) ? parseInt(b.assignedScore) : 0;
+      return a + score;
     }, 0);
   }
   let diff = Math.abs(teamSum(team1) - teamSum(team2));
@@ -105,11 +105,7 @@ function assignRolesAndBalance(players) {
     }
   }
 
-  // If still cannot balance, show popup
-  if (!balanced && typeof window !== "undefined") {
-    window.alert("Cannot balance teams within 7 points. This is because role assignment is forced to be unique for both teams and only players with score > 0 are considered.");
-  }
-
+  // If still cannot balance, just return the teams as is (no alert)
   return { team1, team2 };
 }
 
@@ -121,10 +117,56 @@ function Randomizer() {
   const [countdown, setCountdown] = useState(5);
   const [winner, setWinner] = useState(null);
   const [balanceMode, setBalanceMode] = useState(true);
-
-  // --- Fix: selectedIds must be stateful and persist across renders ---
   const [selectedIds, setSelectedIds] = useState([]);
   const [history, setHistory] = useState([]);
+
+  // --- Session restore logic using server session.txt ---
+  useEffect(() => {
+    fetch('/api/session')
+      .then(res => res.ok ? res.json() : null)
+      .then(session => {
+        if (
+          session &&
+          session.step === 3 &&
+          session.teams &&
+          Array.isArray(session.teams.team1) &&
+          Array.isArray(session.teams.team2) &&
+          session.teams.team1.length === 5 &&
+          session.teams.team2.length === 5
+        ) {
+          setStep(3);
+          setTeams(session.teams);
+          setSelected(session.selected || []);
+          setSelectedIds(session.selectedIds || []);
+          setBalanceMode(session.balanceMode !== undefined ? session.balanceMode : true);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Save session when teams are set and step is 3
+  useEffect(() => {
+    if (step === 3 && teams.team1.length === 5 && teams.team2.length === 5) {
+      fetch('/api/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          step,
+          teams,
+          selected,
+          selectedIds,
+          balanceMode
+        })
+      });
+    }
+  }, [step, teams, selected, selectedIds, balanceMode]);
+
+  // Clear session when match is finished (step 4 or reset)
+  useEffect(() => {
+    if (step === 4 || step === 1) {
+      fetch('/api/session', { method: 'DELETE' });
+    }
+  }, [step]);
 
   // Fetch players
   useEffect(() => {
@@ -181,26 +223,37 @@ function Randomizer() {
         team1 = result.team1;
         team2 = result.team2;
       } else {
-        // fallback: random split, assign random roles (score > 0 only)
+        // fallback: random split, assign only roles with score > 0
         const roles = ['top', 'jungle', 'mid', 'adc', 'sup'];
         const shuffled = [...selectedPlayers].sort(() => Math.random() - 0.5);
         team1 = [];
         team2 = [];
         const usedRoles1 = new Set();
         const usedRoles2 = new Set();
-        // Try to assign unique roles for each team if possible
         for (let i = 0; i < 5; i++) {
           const p1 = shuffled[i];
           const availableRoles1 = roles.filter(role => p1[role] > 0 && !usedRoles1.has(role));
-          const assignedRole1 = availableRoles1.length ? availableRoles1[0] : roles.find(r => !usedRoles1.has(r)) || roles[0];
-          team1.push({ ...p1, assignedRole: assignedRole1, assignedScore: p1[assignedRole1] });
-          usedRoles1.add(assignedRole1);
+          const assignedRole1 = availableRoles1.length
+            ? availableRoles1[Math.floor(Math.random() * availableRoles1.length)]
+            : null;
+          team1.push(
+            assignedRole1
+              ? { ...p1, assignedRole: assignedRole1, assignedScore: p1[assignedRole1] }
+              : { ...p1, assignedRole: '', assignedScore: 0 }
+          );
+          if (assignedRole1) usedRoles1.add(assignedRole1);
 
           const p2 = shuffled[i + 5];
           const availableRoles2 = roles.filter(role => p2[role] > 0 && !usedRoles2.has(role));
-          const assignedRole2 = availableRoles2.length ? availableRoles2[0] : roles.find(r => !usedRoles2.has(r)) || roles[0];
-          team2.push({ ...p2, assignedRole: assignedRole2, assignedScore: p2[assignedRole2] });
-          usedRoles2.add(assignedRole2);
+          const assignedRole2 = availableRoles2.length
+            ? availableRoles2[Math.floor(Math.random() * availableRoles2.length)]
+            : null;
+          team2.push(
+            assignedRole2
+              ? { ...p2, assignedRole: assignedRole2, assignedScore: p2[assignedRole2] }
+              : { ...p2, assignedRole: '', assignedScore: 0 }
+          );
+          if (assignedRole2) usedRoles2.add(assignedRole2);
         }
       }
     } else {
@@ -550,62 +603,8 @@ function Randomizer() {
   }
 
   if (step === 3) {
-    const sum = arr => arr.reduce((a, b) => a + (parseInt(b.assignedScore) || 0), 0);
+    const sum = arr => arr.reduce((a, b) => a + (parseInt(b.assignedScore) >= 1 ? parseInt(b.assignedScore) : 0), 0);
 
-    // Check for error: any player assigned to a role with 0 point
-    const hasZeroRole =
-      (teams.team1.some(p => p.assignedRole && (parseInt(p[p.assignedRole]) === 0 || p.assignedScore === 0))) ||
-      (teams.team2.some(p => p.assignedRole && (parseInt(p[p.assignedRole]) === 0 || p.assignedScore === 0)));
-
-    // Show error message if cannot assign both teams with all 5 roles or if any player is assigned to a role with 0 point
-    if (!teams.team1.length || !teams.team2.length || hasZeroRole) {
-      let msg = "Cannot assign both teams with all 5 roles.<br />Some roles do not have enough players.";
-      if (hasZeroRole) {
-        msg = "Error: At least one player was assigned to a role with 0 point.<br />Please select different players or adjust player roles.";
-      }
-      return (
-        <div style={{
-          color: '#ff4b4b',
-          fontWeight: 900,
-          fontSize: 26,
-          textAlign: 'center',
-          marginTop: 80,
-          background: '#2c181a',
-          borderRadius: 16,
-          padding: 48,
-          maxWidth: 700,
-          marginLeft: 'auto',
-          marginRight: 'auto',
-          boxShadow: '0 2px 16px #ff4b4b44'
-        }}>
-          <div dangerouslySetInnerHTML={{ __html: msg }} />
-          <br />
-          <button
-            style={{
-              marginTop: 32,
-              background: 'linear-gradient(90deg, #ff4b4b 0%, #ffb347 100%)',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 10,
-              padding: '16px 44px',
-              fontWeight: 900,
-              fontSize: 20,
-              cursor: 'pointer',
-              boxShadow: '0 2px 8px #ff4b4b44',
-              transition: 'background 0.2s, color 0.2s'
-            }}
-            onClick={() => {
-              setStep(1);
-              setTeams({ team1: [], team2: [] });
-              setSelected([]);
-              setSelectedIds([]);
-            }}
-          >
-            Go Back
-          </button>
-        </div>
-      );
-    }
     return (
       <div style={{
         background: 'linear-gradient(135deg, #0a0a1a 0%, #232526 100%)',

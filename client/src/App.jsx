@@ -1,8 +1,12 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import InitiatePlayer from './InitiatePlayer';
 import Randomizer from './Randomizer';
 import MatchHistory from './MatchHistory';
+
+const MemoInitiatePlayer = memo(InitiatePlayer);
+const MemoRandomizer = memo(Randomizer);
+const MemoMatchHistory = memo(MatchHistory);
 
 function App() {
   return (
@@ -111,9 +115,9 @@ function App() {
           `}
         </style>
         <Routes>
-          <Route path="/" element={<Randomizer />} />
-          <Route path="/history" element={<MatchHistory />} />
-          <Route path="/initiate" element={<InitiatePlayer />} />
+          <Route path="/" element={<MemoRandomizer />} />
+          <Route path="/history" element={<MemoMatchHistory />} />
+          <Route path="/initiate" element={<MemoInitiatePlayer />} />
         </Routes>
       </div>
       <style>
